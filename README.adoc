@@ -29,6 +29,7 @@ Zua does make some decisions about where to deliberately diverge from Lua 5.1. H
 * The `string.dump` (and consequently `("").dump`) methods are not available; what use were they, anyway?
 * Errors do not include line numbers (but the stack trace outputted in the event of an error still does)
 * The second argument to the `error` function is ignored.
+* Error messages may differ from Lua 5.1, particularly in parsing.
 
 Any inconsistency between Lua 5.1 and Zua that is not listed above should be regarded as a bug and filed as an issue.
 
