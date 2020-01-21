@@ -1,0 +1,13 @@
+{
+	"authors": [
+		"Brian"
+	],
+	"copyright": "Copyright © 2019, Brian",
+	"description": "An optimized Lua 5.1 implementation",
+	"license": "proprietary",
+	"name": "zua",
+	"buildRequirements": [
+		"disallowDeprecations"
+	],
+	"targetType": "library"
+}

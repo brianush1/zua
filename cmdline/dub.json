@@ -1,0 +1,18 @@
+{
+	"authors": [
+		"Brian"
+	],
+	"dependencies": {
+		"zua": {
+			"path": ".."
+		}
+	},
+	"stringImportPaths": [
+		"../tests"
+	],
+	"copyright": "Copyright © 2019, Brian",
+	"description": "Command line interface to Zua",
+	"license": "proprietary",
+	"name": "zua-cmd",
+	"targetName": "zua"
+}

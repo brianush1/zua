@@ -1,0 +1,37 @@
+= Zua
+brianush1 <brianush1@outlook.com>
+:icons: font
+
+WARNING: This project is very much in an alpha stage and should not yet be used in production code
+
+A slow, not yet fully functioning implementation of Lua 5.1
+
+== Usage
+
+To build Zua, first cd to the cmdline directory under this folder. Then, run `dub build -b release`. This will build the Zua command-line utility in release mode. Run `./zua --help` for usage.
+
+== The path to full* Lua 5.1 support
+* [x] `coroutine` library
+* [x] `math` library
+* [x] `table` library
+* [ ] `io` library
+* [ ] `debug` library (maybe diverge from Lua 5.1)
+* [ ] Pattern-matching functions in `string` library
+* [ ] Module system (`require`, `module`, and `package` globals)
+* [ ] Add userdata type
+* [ ] `newproxy` function
+
+=== *Deliberate inconsistencies
+Zua does make some decisions about where to deliberately diverge from Lua 5.1. Here is a comperehensive list of where this is done:
+
+* There is no such thing as the "main thread." All code, even toplevel code, runs in a coroutine.
+* There is no arbitrary compilation at runtime. This means the globals `dofile`, `load`, `loadfile`, and `loadstring` are not available.
+* The `string.dump` (and consequently `("").dump`) methods are not available; what use were they, anyway?
+* Errors do not include line numbers; the second argument to the `error` function is ignored.
+
+Any inconsistency between Lua 5.1 and Zua that is not listed above should be regarded as a bug and filed as an issue.
+
+== Additions
+
+* Full error position is kept track of, with greater than line precision.
+* The parser includes error recovery.

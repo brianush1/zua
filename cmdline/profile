@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+
+# Script that can be used to profile Zua
+# Depends on profdump and graphviz
+
+rm -f trace.def
+rm -f trace.dot
+rm -f trace.log
+rm -f trace.svg
+dub run -b profile -- -f ../benchmark.lua
+dub run profdump -- -d -t 2 -f trace.log trace.dot
+dot -Tsvg trace.dot -o trace.svg
