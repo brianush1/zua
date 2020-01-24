@@ -210,17 +210,17 @@ private Value toLua(U)(U val) {
 		static foreach (i; 0 .. T.fieldNames.length) {
 			res ~= val[i].toLua;
 		}
-		return Value(res);
+		return Value.makeTuple(res);
 	}
 	else static if (is(T == Value[])) {
-		return Value(val);
+		return Value.makeTuple(val);
 	}
 	else static if (is(T == K[], K)) {
 		Value[] res;
 		foreach (v; val) {
 			res ~= v.toLua;
 		}
-		return Value(res);
+		return Value.makeTuple(res);
 	}
 	else static if (is(T == Value)) {
 		return cast(T) val;

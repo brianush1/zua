@@ -326,7 +326,7 @@ class VmEngine : Engine {
 			case Opcode.Call:
 				Value[] callArgs = popt();
 				Value base = popv();
-				push(Value(base.call(callArgs)));
+				push(Value.makeTuple(base.call(callArgs)));
 				break;
 			case Opcode.NamecallPrep:
 				size_t index = cast(size_t) read!CommonOperand;
@@ -338,7 +338,7 @@ class VmEngine : Engine {
 				Value[] callArgs = popt();
 				Value method = popv();
 				Value base = popv();
-				push(Value(method.call(base ~ callArgs)));
+				push(Value.makeTuple(method.call(base ~ callArgs)));
 				break;
 			case Opcode.Drop:
 				pop();
@@ -365,7 +365,7 @@ class VmEngine : Engine {
 				push(Value(true));
 				break;
 			case Opcode.LdArgs:
-				push(Value(args));
+				push(Value.makeTuple(args));
 				break;
 			case Opcode.NewTable:
 				push(Value(new TableValue));
@@ -395,7 +395,7 @@ class VmEngine : Engine {
 					tuple ~= pop();
 				}
 
-				tuple = Value(tuple.reverse).tuple;
+				tuple = Value.makeTuple(tuple.reverse).tuple;
 
 				Value table = popv();
 
@@ -443,7 +443,7 @@ class VmEngine : Engine {
 					tuple ~= pop();
 				}
 
-				push(Value(tuple.reverse));
+				push(Value.makeTuple(tuple.reverse));
 				break;
 			case Opcode.Unpack:
 				const count = cast(size_t) read!StackOffset;
@@ -482,7 +482,7 @@ class VmEngine : Engine {
 					}
 				}
 
-				push(Value(count >= last.length ? [] : last[count .. $]));
+				push(Value.rawTupleUnsafe(count >= last.length ? [] : last[count .. $]));
 
 				break;
 			case Opcode.UnpackRev:

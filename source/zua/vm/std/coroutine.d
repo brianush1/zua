@@ -119,7 +119,7 @@ private Value[] lcoroutine_resume(ThreadValue co, Value[] params...) {
 			throw err;
 		}
 	}
-	return [Value(true), Value(resumeResult)];
+	return Value(true) ~ resumeResult;
 }
 
 private Value[] lcoroutine_yield(Value[] params...) {

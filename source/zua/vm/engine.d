@@ -538,30 +538,53 @@ struct Value {
 		heap = v;
 	}
 
-	/** Construct a new Value */
-	this(Value[] v) {
-		type = ValueType.Tuple;
+	/**
+	
+	Construct a new tuple Value.
+
+	This is not a traditional constructor, as it performs non-trivial computation, and verbosity
+	may be seen as being inversely proportional to performance.
+	
+	*/
+	pragma(inline) static Value makeTuple(Value[] v) {
+		Value res;
+		res.type = ValueType.Tuple;
 		if (v.length == 0)
-			return;
+			return res;
 		foreach (val; v[0 .. $ - 1]) {
 			if (val.type == ValueType.Tuple) {
 				if (val.tuple.length == 0) {
-					tuple.assumeSafeAppend ~= Value();
+					res.tuple.assumeSafeAppend ~= Value();
 				}
 				else {
-					tuple.assumeSafeAppend ~= val.tuple[0];
+					res.tuple.assumeSafeAppend ~= val.tuple[0];
 				}
 			}
 			else {
-				tuple.assumeSafeAppend ~= val;
+				res.tuple.assumeSafeAppend ~= val;
 			}
 		}
 		if (v[$ - 1].type == ValueType.Tuple) {
-			tuple.assumeSafeAppend ~= v[$ - 1].tuple;
+			res.tuple.assumeSafeAppend ~= v[$ - 1].tuple;
 		}
 		else {
-			tuple.assumeSafeAppend ~= v[$ - 1];
+			res.tuple.assumeSafeAppend ~= v[$ - 1];
 		}
+		return res;
+	}
+
+	/**
+	
+	Construct a new tuple Value, without flattening the tuple whatsoever.
+
+	May lead to problems if not used correctly.
+	
+	*/
+	pragma(inline) static Value rawTupleUnsafe(Value[] v) {
+		Value res;
+		res.type = ValueType.Tuple;
+		res.tuple = v;
+		return res;
 	}
 
 	/** Convert a tuple to a single value */
