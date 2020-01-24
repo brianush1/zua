@@ -3,7 +3,7 @@
 		"Brian"
 	],
 	"copyright": "Copyright © 2019, Brian",
-	"description": "An optimized Lua 5.1 implementation",
+	"description": "A slow, not yet fully functioning implementation of Lua 5.1",
 	"license": "proprietary",
 	"name": "zua",
 	"buildRequirements": [
