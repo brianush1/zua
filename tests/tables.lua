@@ -70,4 +70,11 @@ assert(table.concat(t2, ",") == "3,a", MSG)
 assert(#t3 == 4, MSG)
 assert(table.concat(t3, ",") == "a,3,2,1", MSG)
 
+local function give123()
+	return 1, 2, 3
+end
+
+assert(table.concat({4, give123()}, ",") == "4,1,2,3", MSG)
+assert(table.concat({give123(), 4}, ",") == "1,4", MSG)
+
 print("[X] passed table tests")
