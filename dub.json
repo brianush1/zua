@@ -4,7 +4,7 @@
 	],
 	"copyright": "Copyright © 2019, Brian",
 	"description": "A slow, not yet fully functioning implementation of Lua 5.1",
-	"license": "proprietary",
+	"license": "MIT",
 	"name": "zua",
 	"buildRequirements": [
 		"disallowDeprecations"
