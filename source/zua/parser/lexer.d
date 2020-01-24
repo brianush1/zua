@@ -543,7 +543,6 @@ final class Lexer {
 			err.type = DiagnosticType.Error;
 			err.message = finalMessage;
 			err.add(token);
-			// TODO: add quickfixes
 			*diagnostics ~= err;
 
 			return tuple(false, token);

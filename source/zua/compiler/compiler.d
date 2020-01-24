@@ -152,7 +152,6 @@ private class Compiler {
 	}
 
 	ulong getString(string str) {
-		// TODO: instancing
 		auto res = func.data.length;
 		func.data ~= str;
 		return res;
@@ -403,7 +402,7 @@ private class Compiler {
 		}
 		else {
 			compile(stat.step.get);
-			func.code ~= new AtomicInstruction(Opcode.Dup); // TODO: optimize
+			func.code ~= new AtomicInstruction(Opcode.Dup);
 			func.code ~= new MonadInstruction(Opcode.LdNum, 0.0);
 			func.code ~= new AtomicInstruction(Opcode.Eq);
 			func.code ~= new MonadInstruction(Opcode.JmpT, endLabel);
@@ -556,11 +555,7 @@ private class Compiler {
 			func.code ~= new AtomicInstruction(Opcode.LdTrue);
 			break;
 		case AtomicExprType.VariadicTuple:
-			UUID variadic = variadicStack[$ - 1];
-			if (variadic.empty) {
-				throw new Exception("move this into semantic analysis"); // TODO: move this into semantic analysis
-			}
-			env.get(func, variadic);
+			env.get(func, variadicStack[$ - 1]);
 			break;
 		default:
 			assert(0);

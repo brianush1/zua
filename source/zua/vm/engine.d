@@ -822,7 +822,7 @@ struct Value {
 /** Denotes a virtualization engine */
 class Engine {
 	/** The current instruction pointer of this engine */
-	size_t[Fiber] ipTable; // TODO: weak Fiber keys
+	size_t[Fiber] ipTable;
 	// size_t ipTable;
 
 	/** Get the current IP */

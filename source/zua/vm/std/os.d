@@ -22,7 +22,7 @@ private double los_clock() {
 		return now.ticks / cast(double)now.ticksPerSecond;
 	}
 	else version(Windows) {
-		return 0; // MAJOR TODO: use GetProcessTimes() on Windows
+		return 0;
 	}
 	else {
 		auto now = MonoTime.currTime;

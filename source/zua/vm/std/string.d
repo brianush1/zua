@@ -35,8 +35,6 @@ private string lstring_char(long[] args...) {
 	return str;
 }
 
-// TODO: find, format, gmatch, gsub
-
 private size_t lstring_len(string s) {
 	return s.length;
 }
@@ -50,8 +48,6 @@ private string lstring_lower(string s) {
 	}
 	return res;
 }
-
-// TODO: match
 
 private string lstring_rep(string s, long n) {
 	if (n < 1) return "";

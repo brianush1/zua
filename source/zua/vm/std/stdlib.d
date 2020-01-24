@@ -65,8 +65,6 @@ private Algebraic!(void, bool, double) lua_collectgarbage(Nullable!string optn, 
 	return Algebraic!(void, bool, double)();
 }
 
-// TODO: dofile
-
 private void lua_error(Value message, Nullable!int) {
 	if (message.type == ValueType.Number) {
 		throw new LuaError(message.luaToString);
@@ -139,8 +137,6 @@ private Value ipairsIteratorValue = exposeFunction!(ipairsIterator, "?");
 private Tuple!(Value, TableValue, double) lua_ipairs(TableValue input) {
 	return tuple(ipairsIteratorValue, input, 0.0);
 }
-
-// TODO: load, loadfile, loadstring, module
 
 private Value[] lua_next(TableValue table, Nullable!Value indexn) {
 	Value[] res;
@@ -244,8 +240,6 @@ private TableValue lua_rawset(TableValue table, Value index, Value value) {
 	table.rawset(index, value);
 	return table;
 }
-
-// TODO: require
 
 private Algebraic!(Value[], long) lua_select(Algebraic!(long, string) opt, Value[] args...) {
 	if (opt.peek!string && opt.get!string == "#") {

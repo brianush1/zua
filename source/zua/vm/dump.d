@@ -8,7 +8,7 @@ import std.uni;
 
 version(assert) {
 	private string formatLua(string s) {
-		return "[[" ~ s ~ "]]"; // TODO: make this better
+		return "[[" ~ s ~ "]]";
 	}
 
 	private class Dumper {

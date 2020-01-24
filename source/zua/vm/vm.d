@@ -106,7 +106,7 @@ class VmEngine : Engine {
 			}
 			else if (v.type == ValueType.String) {
 				try {
-					return v.str.to!double.nullable; // TODO: fix it to work like Lua?
+					return v.str.to!double.nullable;
 				}
 				catch (ConvException) {
 					return Nullable!double();

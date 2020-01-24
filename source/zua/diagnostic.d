@@ -132,7 +132,7 @@ string apply(Quickfix fix, string source) {
 }
 
 /** Return the zero-indexed line number and local index from absolute index */
-auto decodeIndex(size_t index, string source) { // TODO: make this efficient
+auto decodeIndex(size_t index, string source) {
 	Tuple!(size_t, "line", size_t, "index") result;
 
 	index = min(source.length, index);

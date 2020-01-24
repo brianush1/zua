@@ -197,9 +197,6 @@ final class Parser {
 		while (!lexer.eof && !lexer.isNext(TokenType.Keyword, endKeyword)) {
 			result.body ~= stat();
 			lexer.tryConsume(TokenType.Symbol, ";");
-
-			// TODO: make sure last stat is a laststat in semantic analysis (not here!)
-			// TODO: while we're on the topic of semantic analysis, check for 'break' being in the right spot
 		}
 
 		if (lexer.eof) {

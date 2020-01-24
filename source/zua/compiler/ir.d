@@ -202,10 +202,10 @@ final class FunctionExpr : Expr {
 	UUID[] args;
 
 	/** A list of upvalue IDs */
-	UUID[] upvalues; // TODO: on dead code elimination, should be recalculated
+	UUID[] upvalues;
 
 	/** A list of closed IDs */
-	UUID[] closed; // TODO: on dead code elimination, should be recalculated
+	UUID[] closed;
 
 	/** The number of variables local to this function */
 	ulong localsCount;
