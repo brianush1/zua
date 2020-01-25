@@ -94,18 +94,18 @@ private U fromLua(U, alias Default)(lazy string errorMsg, Nullable!Value nval) {
 
 		return cast(U) str[0];
 	}
-	else static if (is(T == string)) {
+	else static if (is(T == string) || is(T == wstring) || is(T == dstring)) {
 		if (nval.isNull)
 			error("string");
 
 		const Value val = nval.get;
 
-		string str;
+		T str;
 		if (val.type == ValueType.String) {
-			str = val.str;
+			str = val.str.to!T;
 		}
 		else if (val.type == ValueType.Number) {
-			str = val.num.to!string;
+			str = val.num.to!T;
 		}
 		else
 			error("string");
@@ -197,7 +197,10 @@ private Value toLua(U)(U val) {
 	else static if (is(T == char)) {
 		return Value([cast(T) val]);
 	}
-	else static if (is(T == string) || is(T == bool)) {
+	else static if (is(T == string) || is(T == wstring) || is(T == dstring)) {
+		return Value(val.to!string);
+	}
+	else static if (is(T == bool)) {
 		return Value(cast(T) val);
 	}
 	else static if (is(T == TableValue) || is(T == FunctionValue)
