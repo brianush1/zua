@@ -8,6 +8,10 @@ import std.meta;
 import std.conv;
 import std.uuid;
 
+// this interop library was created mostly for the standard library; it is dirty and low-level and should not be used in user code
+// use zua.interop instead
+package:
+
 private U fromLua(U, alias Default)(lazy string errorMsg, Nullable!Value nval) {
 	alias T = Unqual!U;
 

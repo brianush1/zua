@@ -1,11 +1,18 @@
 module zua;
-public import zua.vm.engine : Traceframe, LuaError, ValueType, Value, TableValue, FunctionValue, ThreadValue;
+public import zua.vm.engine : Traceframe, LuaError;
 public import zua.vm.std.stdlib : GlobalOptions;
+public import zua.interop : DConsumable;
+public import zua.interop.table : Table;
+import zua.vm.engine : Value, TableValue;
+import zua.interop;
 import zua.compiler.sourcemap;
 import zua.vm.std.stdlib;
 import zua.diagnostic;
+import std.algorithm;
+import std.array;
 import std.typecons;
 import std.uuid;
+import std.traits;
 
 /*
 
@@ -103,42 +110,69 @@ final class Server {
 /** An executing client */
 final class Client {
 	/** The global environment of this client */
-	TableValue globalEnv;
+	Table env;
 
 	/** Create a new Client */
 	this(GlobalOptions context) {
-		globalEnv = stdenv(context);
+		env = DConsumable(Value(stdenv(context))).get!Table;
 	}
 
 	/** Run a bytecode unit */
-	Value[] run(BCUnit unit, Value[] args = []) {
+	DConsumable[] run(BCUnit unit, DConsumable[] args) {
 		import zua.vm.vm : VmEngine;
 
 		VmEngine engine = new VmEngine(unit.content, unit.id);
-		return engine.getToplevel(globalEnv).ccall(args);
+		return engine.getToplevel(env._internalTable.table)
+			.ccall(args.map!(x => x.makeInternalValue).array).makeConsumable;
+	}
+
+	/** Run a bytecode unit with the given parameters */
+	DConsumable[] run(T...)(BCUnit unit, T args) {
+		import zua.vm.vm : VmEngine;
+
+		VmEngine engine = new VmEngine(unit.content, unit.id);
+		Value[] luaArgs;
+		luaArgs.reserve(T.length);
+		static foreach (i; 0..T.length) {
+			static assert(isConvertible!(T[i]));
+			luaArgs ~= DConsumable(args[i]).makeInternalValue;
+		}
+		return engine.getToplevel(env._internalTable.table).ccall(luaArgs).makeConsumable;
 	}
 }
 
 /** A class capable both of executing and producing bytecode */
 final class Common {
-	private Server server;
-	private Client client;
+	/** The server component of this Common */
+	Server server;
 
-	/** The global environment of this client */
-	TableValue globalEnv;
+	/** The client component of this Common */
+	Client client;
+
+	alias client this;
 
 	/** Create a new Common */
 	this(GlobalOptions context) {
 		server = new Server;
 		client = new Client(context);
-		globalEnv = client.globalEnv;
 	}
 
 	/** Run some source */
-	Tuple!(Diagnostic[], Value[]) run(string filename, string source, Value[] args = []) {
+	Tuple!(Diagnostic[], DConsumable[]) run(string filename, string source, DConsumable[] args) {
 		auto compiled = server.compile(filename, source);
 		if (compiled.unit is null) {
-			return tuple(compiled.diagnostics, cast(Value[])[]);
+			return tuple(compiled.diagnostics, cast(DConsumable[])[]);
+		}
+		else {
+			return tuple(compiled.diagnostics, client.run(compiled.unit, args));
+		}
+	}
+
+	/** Run some source */
+	Tuple!(Diagnostic[], DConsumable[]) run(T...)(string filename, string source, T args) {
+		auto compiled = server.compile(filename, source);
+		if (compiled.unit is null) {
+			return tuple(compiled.diagnostics, cast(DConsumable[])[]);
 		}
 		else {
 			return tuple(compiled.diagnostics, client.run(compiled.unit, args));
