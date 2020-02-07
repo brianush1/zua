@@ -94,6 +94,7 @@ Options:)", helpInformation.options);
 			import("tablelib.lua"),
 			import("stringlib.lua"),
 			import("bit32lib.lua"),
+			import("proxies.lua"),
 		];
 
 		foreach (s; tests) {

@@ -288,17 +288,25 @@ final class TableValue {
 
 		rawset(key, value);
 	}
+}
 
-	/** Call this value */
-	pragma(inline) Value[] call(Value[] args) {
-		if (metatable !is null) {
-			auto callHandler = metatable.get(Value("__call"));
-			if (!callHandler.isNil) {
-				return callHandler.call(Value(this) ~ args);
-			}
-		}
+/** Represents a userdata value */
+final class UserdataValue {
+	/** Pointer to user-defined data */
+	void* data;
 
-		throw new LuaError(Value("attempt to call a table value"));
+	/** The metatable of this UserdataValue */
+	TableValue metatable;
+
+	/** Creates a new UserdataValue */
+	this(void* data, TableValue metatable) {
+		this.data = data;
+		this.metatable = metatable;
+	}
+
+	/** Creates a new UserdataValue */
+	this(TableValue metatable) {
+		this.metatable = metatable;
 	}
 }
 
@@ -372,7 +380,7 @@ enum ValueType {
 	Table,
 	Function,
 	Thread,
-	// Userdata,
+	Userdata,
 	Heap,
 
 	Tuple,
@@ -391,7 +399,7 @@ struct Value {
 		TableValue table; /// The table component of this Value
 		FunctionValue func; /// The function component of this Value
 		ThreadValue thread; /// The thread component of this Value
-		// UserdataValue userdata; /// The userdata component of this Value
+		UserdataValue userdata; /// The userdata component of this Value
 
 		Value* heap; /// The reference component of this Value
 		Value[] tuple; /// The tuple component of this Value
@@ -410,6 +418,8 @@ struct Value {
 			return str == other.str;
 		case ValueType.Table:
 			return table is other.table;
+		case ValueType.Userdata:
+			return userdata is other.userdata;
 		case ValueType.Function:
 			return func is other.func;
 		case ValueType.Thread:
@@ -431,6 +441,8 @@ struct Value {
 				return str.hashOf;
 			case ValueType.Table:
 				return table.hashOf;
+			case ValueType.Userdata:
+				return userdata.hashOf;
 			case ValueType.Function:
 				return func.hashOf;
 			case ValueType.Thread:
@@ -452,6 +464,8 @@ struct Value {
 			return str;
 		case ValueType.Table:
 			return "table: 0x" ~ table.toHash.toChars!16.to!string;
+		case ValueType.Userdata:
+			return "userdata: 0x" ~ table.toHash.toChars!16.to!string;
 		case ValueType.Function:
 			return "function: 0x" ~ func.toHash.toChars!16.to!string;
 		case ValueType.Thread:
@@ -518,6 +532,12 @@ struct Value {
 	this(TableValue v) {
 		type = ValueType.Table;
 		table = v;
+	}
+
+	/** Construct a new Value */
+	this(UserdataValue v) {
+		type = ValueType.Userdata;
+		userdata = v;
 	}
 
 	/** Construct a new Value */
@@ -600,6 +620,7 @@ struct Value {
 	/** Get the metatable of this value, or null if N/A */
 	pragma(inline) TableValue metatable() {
 		if (type == ValueType.Table) return table.metatable;
+		if (type == ValueType.Userdata) return userdata.metatable;
 		if (type == ValueType.String) {
 			if (!stringMetatable) {
 				import zua.vm.std.string : stringlib;
@@ -672,13 +693,33 @@ struct Value {
 	pragma(inline) void set(Value key, Value value) {
 		if (type == ValueType.Table) return table.set(key, value);
 
+		TableValue meta = metatable;
+
+		if (meta is null)
+			throw new LuaError(Value("attempt to index a " ~ typeStr ~ " value"));
+
+		Value newindex = meta.get(Value("__newindex"));
+		if (newindex.type != ValueType.Nil) {
+			Value.from(newindex.call([this, key]));
+			return;
+		}
+
 		throw new LuaError(Value("attempt to index a " ~ typeStr ~ " value"));
 	}
 
 	/** Call this value */
 	pragma(inline) Value[] call(Value[] args) {
-		if (type == ValueType.Table) return table.call(args);
 		if (type == ValueType.Function) return func.rawcall(args);
+
+		TableValue meta = metatable;
+
+		if (meta is null)
+			throw new LuaError(Value("attempt to call a " ~ typeStr ~ " value"));
+
+		Value newindex = meta.get(Value("__call"));
+		if (newindex.type != ValueType.Nil) {
+			return newindex.call(this ~ args);
+		}
 
 		throw new LuaError(Value("attempt to call a " ~ typeStr ~ " value"));
 	}
@@ -712,8 +753,8 @@ struct Value {
 			return "function";
 		case ValueType.Thread:
 			return "thread";
-		// case ValueType.Userdata:
-		// 	return "userdata";
+		case ValueType.Userdata:
+			return "userdata";
 
 		default:
 			assert(0, "got " ~ type.to!string);

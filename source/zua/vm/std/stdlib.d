@@ -138,6 +138,19 @@ private Tuple!(Value, TableValue, double) lua_ipairs(TableValue input) {
 	return tuple(ipairsIteratorValue, input, 0.0);
 }
 
+private Value lua_newproxy(Nullable!Value basen) {
+	Value base = basen.isNull ? Value() : basen.get;
+	if (base.type == ValueType.Userdata && base.metatable !is null && base.userdata.data is null) {
+		return Value(new UserdataValue(base.metatable));
+	}
+	else if (base.type == ValueType.Boolean || base.type == ValueType.Nil) {
+		return Value(new UserdataValue(base.toBool ? new TableValue : null));
+	}
+	else {
+		throw new Exception("bad argument #1 to 'newproxy' (boolean or proxy expected)");
+	}
+}
+
 private Value[] lua_next(TableValue table, Nullable!Value indexn) {
 	Value[] res;
 
@@ -453,6 +466,7 @@ TableValue stdenv(GlobalOptions context) {
 	env.set(Value("getfenv"), exposeFunction!(lua_getfenv, "getfenv"));
 	env.set(Value("getmetatable"), exposeFunction!(lua_getmetatable, "getmetatable"));
 	env.set(Value("ipairs"), exposeFunction!(lua_ipairs, "ipairs"));
+	env.set(Value("newproxy"), exposeFunction!(lua_newproxy, "newproxy"));
 	env.set(Value("next"), exposeFunction!(lua_next, "next"));
 	env.set(Value("pairs"), exposeFunction!(lua_pairs, "pairs"));
 	env.set(Value("pcall"), exposeFunction!(lua_pcall, "pcall"));
