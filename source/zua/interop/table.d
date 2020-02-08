@@ -40,6 +40,16 @@ struct Table {
 		}
 	}
 
+	/** Set the metatable */
+	pragma(inline) void metatable(Table newMetatable) {
+		metatable = newMetatable.Nullable!Table;
+	}
+
+	/** Set the metatable */
+	pragma(inline) void metatable(typeof(null)) {
+		metatable = Nullable!Table();
+	}
+
 	/** Get the length of this table */
 	size_t length() {
 		return cast(size_t)_internalTable.table.length.num;

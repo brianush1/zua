@@ -1,5 +1,7 @@
 module zua.interop;
 import zua.interop.table;
+import zua.interop.userdata;
+import zua.interop.functions;
 import zua.vm.engine;
 import zua.vm.engine : ValueType;
 import std.variant;
@@ -7,25 +9,33 @@ import std.traits;
 import std.typecons;
 import std.uni;
 import std.conv;
+import std.algorithm.iteration;
+import std.range;
 
 alias DConsumableFunction = DConsumable[] delegate(DConsumable[] args);
 
 /** Returns true if the type is convertible to/from a DConsumable; false otherwise */
 enum bool isConvertible(T) =
 	is(Unqual!T == typeof(null))
+	|| is(Unqual!T == void)
 	|| isNumeric!T
 	|| is(Unqual!T == string)
 	|| is(Unqual!T == wstring)
 	|| is(Unqual!T == dstring)
 	|| is(Unqual!T == bool)
 	|| is(Unqual!T == Table)
+	|| is(Unqual!T == Userdata)
 	|| is(Unqual!T == DConsumable)
 	|| is(Unqual!T == Value)
 	|| isSomeFunction!(Unqual!T);
 
-private Nullable!ValueType getValueType(T)() if (isConvertible!T) {
+/** Returns the ValueType that corresponds to the given D-side type, or null if the given D-side type is dynamic */
+Nullable!ValueType getValueType(T)() if (isConvertible!T) {
 	alias U = Unqual!T;
 	static if (is(U == typeof(null))) {
+		return Nullable!ValueType(ValueType.Nil);
+	}
+	else static if (is(U == void)) {
 		return Nullable!ValueType(ValueType.Nil);
 	}
 	else static if (isNumeric!T) {
@@ -40,13 +50,17 @@ private Nullable!ValueType getValueType(T)() if (isConvertible!T) {
 	else static if (is(U == Table)) {
 		return Nullable!ValueType(ValueType.Table);
 	}
+	else static if (is(U == Userdata)) {
+		return Nullable!ValueType(ValueType.Userdata);
+	}
 	else static if (is(U == DConsumable) || is(U == Value)) {
 		return Nullable!ValueType();
 	}
 	else static assert(0);
 }
 
-private string type2str(ValueType type) {
+/** Convert a ValueType to its canonical string form */
+string valueTypeToString(ValueType type) {
 	return type.to!string.toLower;
 }
 
@@ -62,6 +76,7 @@ struct DConsumable {
 		string,
 		bool,
 		Table,
+		Userdata,
 		DConsumableFunction,
 	) value;
 
@@ -87,7 +102,10 @@ struct DConsumable {
 			this(Value(v), cast(typeof(value))v);
 		}
 		else static if (is(U == Table)) {
-			this(v.table, cast(typeof(value))v);
+			this(v._internalTable, cast(typeof(value))v);
+		}
+		else static if (is(U == Userdata)) {
+			this(v._internalUserdata, cast(typeof(value))v);
 		}
 		else static if (is(U == DConsumable)) {
 			this(v.internalValue, cast(typeof(value))v.value);
@@ -101,6 +119,7 @@ struct DConsumable {
 			case ValueType.String: dvalue = DConsumable(v, cast(typeof(DConsumable.value))v.str); break;
 			case ValueType.Boolean: dvalue = DConsumable(v, cast(typeof(DConsumable.value))v.boolean); break;
 			case ValueType.Table: dvalue = DConsumable(v, cast(typeof(DConsumable.value))Table(v)); break;
+			case ValueType.Userdata: dvalue = DConsumable(v, cast(typeof(DConsumable.value))Userdata(v)); break;
 			case ValueType.Function:
 				dvalue = DConsumable(v, cast(typeof(DConsumable.value))delegate(DConsumable[] args) {
 					Value[] luaArgs;
@@ -118,80 +137,54 @@ struct DConsumable {
 				});
 				break;
 			// case ValueType.Thread:
+			// TODO: this
 			default: assert(0);
 			}
 
 			this(dvalue);
 		}
 		else static if (isSomeFunction!U) {
-			alias ret = ReturnType!U;
-
-			static if (!isConvertible!ret && isArray!ret) {
-				static assert(isConvertible!(typeof((cast(ret)[])[0])));
-			}
-			else {
-				static assert(isConvertible!ret);
-			}
-
-			Value[] delegate(Value[]) func = delegate(Value[] args) {
-				static if (variadicFunctionStyle!U == Variadic.no) {
-					alias params = Parameters!U;
-					static foreach (i; 0..params.length) {
-						static assert(isConvertible!(params[i]));
-					}
-
-					Tuple!params nativeArgs;
-					static foreach (i; 0..params.length) {{
-						alias K = params[i];
-						auto dv = DConsumable(args[i]);
-						Nullable!K res = dv.convert!K;
-						if (res.isNull) {
-							throw new LuaError(Value("bad argument #" ~ to!string(i + 1)
-								~ " to '" ~ preferredName ~ "' (" ~ getValueType!K.get.type2str
-								~ " expected, got " ~ dv.internalValue.type.type2str ~ ")"));
-						}
-						else {
-							nativeArgs[i] = res.get;
-						}
-					}}
-					ret res = v(nativeArgs.expand);
-					static if (!isConvertible!ret && isArray!ret) {
-						Value[] values;
-						values.reserve(res.length);
-						foreach (val; res) {
-							values ~= DConsumable(val).internalValue;
-						}
-						return values;
+			DConsumable[] luaFunction(DConsumable[] consumableArgs) {
+				try {
+					auto args = convertParameters!(U, preferredName)(consumableArgs);
+					static if (is(ReturnType!U == void)) {
+						v(args.expand);
+						return [];
 					}
 					else {
-						return [DConsumable(res).internalValue];
+						return v(args.expand).convertReturn!U;
 					}
 				}
-				else static assert(0, "This type of variadic function is not supported");
-			};
+				catch (Exception e) {
+					if (is(e : LuaError)) {
+						throw e;
+					}
+					else {
+						throw new LuaError(Value(e.msg));
+					}
+				}
+			}
 
 			FunctionValue funcValue = new FunctionValue;
 			funcValue.env = null;
 			funcValue.engine = new class Engine {
 				override Value[] callf(FunctionValue, Value[] args) {
-					return func(args);
+					DConsumable[] consumableArgs;
+					consumableArgs.reserve(args.length);
+					foreach (v; args) {
+						consumableArgs ~= DConsumable(v);
+					}
+					DConsumable[] consumableResult = luaFunction(consumableArgs);
+					Value[] res;
+					res.reserve(consumableResult.length);
+					foreach (v; consumableResult) {
+						res ~= v.internalValue;
+					}
+					return res;
 				}
 			};
 
-			this(Value(funcValue), cast(typeof(DConsumable.value))(delegate DConsumable[](DConsumable[] args) {
-				Value[] luaArgs;
-				luaArgs.reserve(args.length);
-				foreach (i; 0..args.length) {
-					luaArgs ~= args[i].makeInternalValue;
-				}
-				Value[] luaRes = func(luaArgs);
-				DConsumable[] res;
-				res.reserve(luaRes.length);
-				foreach (i; 0..luaRes.length) {
-					res ~= DConsumable(luaRes[i]);
-				}
-				return res;
-			}));
+			this(Value(funcValue), cast(typeof(DConsumable.value))&luaFunction);
 		}
 		else static assert(0);
 	}
@@ -201,8 +194,8 @@ struct DConsumable {
 		this.value = value;
 	}
 
-	/** Convert the DConsumable to a native D type, possibly failing */
-	Nullable!T convert(T)() const {
+	/** Convert the DConsumable to a native D type, possibly failing; if exact, type coercion is not performed */
+	Nullable!T convert(T, bool exact = false)() const {
 		alias U = Unqual!T;
 		static if (is(U == typeof(null))) {
 			if (internalValue.type == ValueType.Nil) return cast(Nullable!T)null;
@@ -210,7 +203,7 @@ struct DConsumable {
 		}
 		else static if (isNumeric!T) {
 			if (internalValue.type == ValueType.Number) return cast(Nullable!T)(internalValue.num.to!U);
-			else if (internalValue.type == ValueType.String) {
+			else if (internalValue.type == ValueType.String && !exact) {
 				try {
 					return cast(Nullable!T)(internalValue.str.to!U);
 				}
@@ -222,19 +215,33 @@ struct DConsumable {
 		}
 		else static if (is(U == string) || is(U == wstring) || is(U == dstring)) {
 			if (internalValue.type == ValueType.String) return cast(Nullable!T)(internalValue.str.to!U);
-			else if (internalValue.type == ValueType.Number) return cast(Nullable!T)(internalValue.num.to!U);
+			else if (internalValue.type == ValueType.Number && !exact) return cast(Nullable!T)(internalValue.num.to!U);
 			else return Nullable!T();
 		}
 		else static if (is(U == bool)) {
-			if (internalValue.type == ValueType.Nil || (internalValue.type == ValueType.Boolean && !internalValue.boolean)) {
-				return Nullable!T(false);
+			static if (exact) {
+				if (internalValue.type == ValueType.Boolean) {
+					return Nullable!T(internalValue.boolean);
+				}
+				else {
+					return Nullable!T();
+				}
 			}
 			else {
-				return Nullable!T(true);
+				if (internalValue.type == ValueType.Nil || (internalValue.type == ValueType.Boolean && !internalValue.boolean)) {
+					return Nullable!T(false);
+				}
+				else {
+					return Nullable!T(true);
+				}
 			}
 		}
 		else static if (is(U == Table)) {
 			if (internalValue.type == ValueType.Table) return cast(Nullable!T)value.get!Table;
+			else return Nullable!T();
+		}
+		else static if (is(U == Userdata)) {
+			if (internalValue.type == ValueType.Userdata) return cast(Nullable!T)value.get!Userdata;
 			else return Nullable!T();
 		}
 		else static if (is(U == DConsumable)) {
@@ -243,6 +250,11 @@ struct DConsumable {
 		else static if (is(U == Value)) {
 			return Nullable!T(internalValue);
 		}
+		else static if (is(U == DConsumableFunction)) {
+			return Nullable!T(delegate(DConsumable[] args) {
+				return internalValue.func.ccall(args.map!makeInternalValue).makeConsumable.array;
+			});
+		}
 		else static assert(0, "Unable to convert to this type");
 	}
 
@@ -250,8 +262,8 @@ struct DConsumable {
 	T opCast(T)() const {
 		Nullable!T res = convert!T;
 		if (res.isNull) {
-			throw new LuaError(Value("bad argument #1 to '?' (" ~ getValueType!T.get.type2str ~ " expected, got "
-				~ internalValue.type.type2str ~ ")"));
+			throw new LuaError(Value("bad argument #1 to '?' (" ~ getValueType!T.get.valueTypeToString ~ " expected, got "
+				~ internalValue.type.valueTypeToString ~ ")"));
 		}
 		else {
 			return res.get;
@@ -297,12 +309,25 @@ unittest {
 		return a ~ b;
 	});
 
+	string cs;
+
+	c.env.expose!"callD4"(delegate(string a, string b) {
+		cs = a ~ b;
+	});
+
+	c.env.expose!"callD5"(delegate() {
+		return cs;
+	});
+
 	try {
 		c.run("file.lua", q"{
 			assert(callD1("2", 3) == 5006)
 			assert(callD2(2, 7) == "27")
 			assert(select(2, pcall(callD2, 2, {})) == "bad argument #2 to '?' (string expected, got table)")
 			assert(select(2, pcall(callD3, {}, 3)) == "bad argument #1 to 'callD3' (string expected, got table)")
+			assert(callD5() == "")
+			assert(not callD4("a", "b"))
+			assert(callD5() == "ab")
 		}");
 	}
 	catch (LuaError e) {
