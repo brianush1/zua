@@ -18,8 +18,8 @@ To build Zua, first cd to the cmdline directory under this folder. Then, run `du
 * [ ] `debug` library (maybe diverge from Lua 5.1)
 * [ ] Pattern-matching functions in `string` library
 * [ ] Module system (`require`, `module`, and `package` globals)
-* [ ] Add userdata type
-* [ ] `newproxy` function
+* [x] Add userdata type
+* [x] `newproxy` function
 
 === *Deliberate inconsistencies
 Zua does make some decisions about where to deliberately diverge from Lua 5.1. Here is a comperehensive list of where this is done:
