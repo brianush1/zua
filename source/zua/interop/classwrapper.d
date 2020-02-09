@@ -66,8 +66,10 @@ private DConsumable makeFunctionFromOverloads(bool isStatic, string member, T...
 	}
 }
 
+alias ClassConverter(T) = Userdata delegate(T instance);
+
 /** Create a class wrapper for use in Lua */
-DConsumable makeClassWrapper(T)() if (is(T == class)) {
+Tuple!(DConsumable, ClassConverter!T) makeClassWrapper(T)() if (is(T == class)) {
 	Userdata staticClass = Userdata.create(cast(void*)-1);
 
 	Table staticMeta = Table.create();
@@ -255,7 +257,9 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 
 	staticClass.metatable = staticMeta;
 
-	return DConsumable(staticClass);
+	return tuple(DConsumable(staticClass), delegate Userdata(T instance) {
+		return Userdata.create(cast(void*)instance, instanceMeta.Nullable!Table);
+	});
 }
 
 version(unittest) {
@@ -317,7 +321,7 @@ unittest {
 
 	Common c = new Common(GlobalOptions.FullAccess);
 
-	c.env["C"] = makeClassWrapper!C;
+	c.env["C"] = makeClassWrapper!C[0];
 
 	try {
 		c.run("file.lua", q"{
