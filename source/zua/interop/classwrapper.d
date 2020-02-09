@@ -1,10 +1,70 @@
 module zua.interop.classwrapper;
+import zua.interop.functions;
 import zua.interop.userdata;
 import zua.interop.table;
 import zua.interop;
+import zua.vm.engine;
 import std.typecons;
 import std.traits;
 import std.meta;
+
+private DConsumable makeFunctionFromOverloads(bool isStatic, string member, T...)(T overloads) {
+	pragma(inline) DConsumable[] func(DConsumable[] consumableArgs...) {
+		// first we check for an exact match, then we try an approximate match
+		static foreach (iterations; 0..2) {
+			static foreach (i; 0..overloads.length) {{
+				auto func = overloads[i];
+				alias U = Unqual!(T[i]);
+				try {
+					// if this is the first time, exact match; else, non-exact match
+					auto args = convertParameters!(U, member, iterations == 0)(consumableArgs);
+					static if (is(ReturnType!U == void)) {
+						func(args.expand);
+						return [];
+					}
+					else {
+						return func(args.expand).convertReturn!U;
+					}
+				}
+				catch (ConversionException e) {
+					// Do nothing
+				}
+				catch (Exception e) {
+					if (cast(LuaError)e) {
+						throw e;
+					}
+					else {
+						throw new LuaError(Value(e.msg));
+					}
+				}
+			}}
+		}
+		// if we didn't find a match, we throw an error:
+		try {
+			convertParameters!(Unqual!(typeof(overloads[0])), member)(consumableArgs);
+		}
+		catch (Exception e) {
+			if (cast(LuaError)e) {
+				throw e;
+			}
+			else {
+				throw new LuaError(Value(e.msg));
+			}
+		}
+		assert(0);
+	}
+
+	static if (isStatic) {
+		return DConsumable(delegate DConsumable[](DConsumable[] args...) {
+			return func(args);
+		});
+	}
+	else {
+		return DConsumable(delegate DConsumable[](Userdata _, DConsumable[] args...) {
+			return func(args);
+		});
+	}
+}
 
 /** Create a class wrapper for use in Lua */
 DConsumable makeClassWrapper(T)() if (is(T == class)) {
@@ -13,7 +73,7 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 	Table staticMeta = Table.create();
 	Table instanceMeta = Table.create();
 
-	Userdata constructor(DConsumable[] args...) {
+	Userdata constructor() {
 		T res = new T;
 		return Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
 	}
@@ -26,13 +86,43 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 		&& T != "opIndexOpAssign" && T != "opIndex" && T != "opDollar" && T != "opDispatch";
 	alias Members = Filter!(NotSpecial, __traits(allMembers, T));
 
-	DConsumable instanceIndex(Userdata, string key) {
-		// TODO: this
+	DConsumable instanceIndex(Userdata lself, string key) {
+		T self = cast(T)lself.data;
+
+		static foreach (member; Members) {{
+			static if (!hasStaticMember!(T, member)) {
+				if (member == key) {
+					enum size_t index = staticIndexOf!(member, FieldNameTuple!T);
+					static if (index != -1) {{
+						alias FieldType = Fields!T[index];
+						static if (isConvertible!FieldType) {
+							return DConsumable(__traits(getMember, self, member));
+						}
+					}}
+					else {
+						alias Overloads = __traits(getOverloads, self, member);
+						alias GetPointer(alias U) = typeof(&U);
+						alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
+						alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
+						alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
+						Tuple!OverloadsArray overloads;
+						static foreach (i; 0..OverloadsArray.length) {
+							overloads[i] = &Overloads[i];
+						}
+						return makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
+					}
+				}
+			}
+		}}
 
 		throw new Exception("attempt to index member '" ~ key ~ "'");
 	}
 
 	instanceMeta["__index"] = &instanceIndex;
+	instanceMeta["__tostring"] = delegate(Userdata lself) {
+		T self = cast(T)lself.data;
+		return self.toString;
+	};
 	instanceMeta["__metatable"] = "The metatable is locked";
 
 	DConsumable staticIndex(Userdata, string key) {
@@ -41,6 +131,30 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 			res.__ctor!(typeof(&constructor), "new")(&constructor);
 			return res;
 		}
+
+		static foreach (member; Members) {{
+			static if (hasStaticMember!(T, member)) {
+				if (member == key) {
+					// TODO: this code is basically the same as the other one
+					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
+						alias FieldType = typeof(__traits(getMember, T, member));
+						static if (isConvertible!FieldType) {
+							return DConsumable(__traits(getMember, T, member));
+						}
+					}}
+					else {
+						alias Overloads = __traits(getOverloads, T, member);
+						alias GetPointer(alias U) = typeof(&U);
+						alias OverloadsArray = staticMap!(GetPointer, Overloads);
+						Tuple!OverloadsArray overloads;
+						static foreach (i; 0..OverloadsArray.length) {
+							overloads[i] = &Overloads[i];
+						}
+						return makeFunctionFromOverloads!(true, member, OverloadsArray)(overloads.expand);
+					}
+				}
+			}
+		}}
 
 		throw new Exception("attempt to index member '" ~ key ~ "'");
 	}
@@ -51,6 +165,9 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 
 	staticMeta["__index"] = &staticIndex;
 	staticMeta["__newindex"] = &staticNewIndex;
+	staticMeta["__tostring"] = delegate() {
+		return fullyQualifiedName!T;
+	};
 	staticMeta["__metatable"] = "The metatable is locked";
 
 	staticClass.metatable = staticMeta;
@@ -61,10 +178,19 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 version(unittest) {
 	class C {
 
+		static int y = 5;
 		int x;
 
-		int foo() {
-			return 3;
+		int foo(int x) {
+			return x * 3;
+		}
+
+		string foo(string x) {
+			return x ~ " is fun";
+		}
+
+		int foo(int x, int y) {
+			return x + y * 100;
 		}
 
 		static int goo() {
@@ -73,6 +199,10 @@ version(unittest) {
 
 		static int goo(int s) {
 			return s * 2;
+		}
+
+		override string toString() const {
+			return "C is a class";
 		}
 
 	}
@@ -88,13 +218,20 @@ unittest {
 
 	try {
 		c.run("file.lua", q"{
-			print(C)
-			local ins = C.new(2, "asd")
-			--[[ins.x = 23
-			assert(ins.foo() == 3)
+			assert(tostring(C) == "zua.interop.classwrapper.C")
+			local ins = C.new()
+			assert(tostring(ins) == "C is a class")
+			assert(ins.x == 0)
+			assert(ins:foo(2) == 6)
+			assert(ins:foo(2.9) == 6)
+			assert(ins:foo("programming") == "programming is fun")
+			assert(ins:foo(7, "8") == 807)
+			--ins.x = 23
+			assert(select(2, pcall(ins.foo, ins)) == "bad argument #1 to 'foo' (number expected, got nil)")
+			assert(C.y == 5)
 			assert(C.goo() == 7)
 			assert(C.goo(4) == 8)
-			assert(not ins.foo and not C.foo)]]
+			assert(not pcall(function() return C.foo end))
 		}");
 	}
 	catch (LuaError e) {

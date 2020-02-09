@@ -156,7 +156,7 @@ struct DConsumable {
 					}
 				}
 				catch (Exception e) {
-					if (is(e : LuaError)) {
+					if (cast(LuaError)e) {
 						throw e;
 					}
 					else {

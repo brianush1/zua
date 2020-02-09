@@ -26,13 +26,23 @@ exact = When true,
 */
 auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = false)(DConsumable[] args) {
 	alias Func = Unqual!QualifiedFunc;
-	static assert(isSomeFunction!Func, "expected function");
+	static assert(isSomeFunction!Func, "expected function, got " ~ Func.stringof);
 
 	static if (variadicFunctionStyle!Func == Variadic.no) {
 		alias Params = Parameters!Func;
 
 		static foreach (i; 0..Params.length) {
-			static assert(isConvertible!(Params[i]), "parameter #" ~ to!string(i + 1) ~ " is not convertible from a Lua value");
+			static assert(isConvertible!(Params[i]), "parameter #" ~ to!string(i + 1) ~ " (" ~ Params[i].stringof
+				~ ") is not convertible from a Lua value");
+		}
+
+		static if (exact) {
+			if (Params.length > args.length) {
+				throw new ConversionException("not enough parameters");
+			}
+			else if (Params.length < args.length) {
+				throw new ConversionException("too many parameters");
+			}
 		}
 
 		Tuple!Params dsideArgs = void;
@@ -66,6 +76,12 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 			// this should never realistically run ^
 		}
 		static assert(isConvertible!VarargElement, "vararg parameter is not convertible from a Lua value");
+
+		static if (exact) {
+			if (Params.length > args.length) {
+				throw new ConversionException("not enough parameters");
+			}
+		}
 
 		Tuple!(Parameters!Func) dsideArgs = void;
 		static foreach (i; 0..Params.length) {{
