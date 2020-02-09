@@ -118,7 +118,32 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 		throw new Exception("attempt to index member '" ~ key ~ "'");
 	}
 
+	void instanceNewIndex(Userdata lself, string key, DConsumable value) {
+		T self = cast(T)lself.data;
+
+		static foreach (member; Members) {{
+			static if (!hasStaticMember!(T, member)) {
+				if (member == key) {
+					enum size_t index = staticIndexOf!(member, FieldNameTuple!T);
+					static if (index != -1) {{
+						alias FieldType = Fields!T[index];
+						static if (isConvertible!FieldType) {
+							__traits(getMember, self, member) = value.opCast!(FieldType, 3);
+							return;
+						}
+					}}
+					else {
+						throw new Exception("attempt to modify member '" ~ key ~ "'");
+					}
+				}
+			}
+		}}
+
+		throw new Exception("attempt to modify member '" ~ key ~ "'");
+	}
+
 	instanceMeta["__index"] = &instanceIndex;
+	instanceMeta["__newindex"] = &instanceNewIndex;
 	instanceMeta["__tostring"] = delegate(Userdata lself) {
 		T self = cast(T)lself.data;
 		return self.toString;
@@ -226,7 +251,8 @@ unittest {
 			assert(ins:foo(2.9) == 6)
 			assert(ins:foo("programming") == "programming is fun")
 			assert(ins:foo(7, "8") == 807)
-			--ins.x = 23
+			ins.x = 23
+			assert(ins.x == 23)
 			assert(select(2, pcall(ins.foo, ins)) == "bad argument #1 to 'foo' (number expected, got nil)")
 			assert(C.y == 5)
 			assert(C.goo() == 7)
