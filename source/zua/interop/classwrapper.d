@@ -68,8 +68,23 @@ private DConsumable makeFunctionFromOverloads(bool isStatic, string member, T...
 
 alias ClassConverter(T) = Userdata delegate(T instance);
 
+private Tuple!(DConsumable, ClassConverter!Object)[TypeInfo] classWrapperMemo;
+
 /** Create a class wrapper for use in Lua */
 Tuple!(DConsumable, ClassConverter!T) makeClassWrapper(T)() if (is(T == class)) {
+	TypeInfo info = typeid(T);
+	if (info in classWrapperMemo) {
+		auto res = classWrapperMemo[info];
+		return tuple(res[0], cast(ClassConverter!T)res[1]);
+	}
+	else {
+		auto res = makeClassWrapperUnmemoized!T;
+		classWrapperMemo[info] = tuple(res[0], cast(ClassConverter!Object)res[1]);
+		return res;
+	}
+}
+
+private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if (is(T == class)) {
 	Userdata staticClass = Userdata.create(cast(void*)-1);
 
 	Table staticMeta = Table.create();
