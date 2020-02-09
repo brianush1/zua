@@ -139,7 +139,23 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 						}
 					}}
 					else {
-						throw new Exception("attempt to modify member '" ~ key ~ "'");
+						static if (hasFunctionAttributes!(__traits(getMember, self, member), "@property")) {
+							alias Overloads = __traits(getOverloads, self, member);
+							alias GetPointer(alias U) = typeof(&U);
+							alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
+							alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
+							alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
+							Tuple!OverloadsArray overloads;
+							static foreach (i; 0..OverloadsArray.length) {
+								overloads[i] = &Overloads[i];
+							}
+							DConsumable func = makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
+							(cast(DConsumableFunction)func)([DConsumable(lself), value]);
+							return;
+						}
+						else {
+							throw new Exception("attempt to modify member '" ~ key ~ "'");
+						}
 					}
 				}
 			}
@@ -220,6 +236,10 @@ version(unittest) {
 			return 4; // see above
 		}
 
+		void xMangler(int x) @property {
+			this.x = x * 8;
+		}
+
 		int foo(int x) {
 			return x * 3;
 		}
@@ -274,6 +294,8 @@ unittest {
 			assert(not pcall(function() return C.foo end))
 			assert(ins:rand() == 4)
 			assert(ins.rand2 == 4)
+			ins.xMangler = 16
+			assert(ins.x == 128)
 		}");
 	}
 	catch (LuaError e) {
