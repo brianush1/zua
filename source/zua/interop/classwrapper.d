@@ -87,7 +87,7 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 	alias Members = Filter!(NotSpecial, __traits(allMembers, T));
 
 	DConsumable instanceIndex(Userdata lself, string key) {
-		T self = cast(T)lself.data;
+		T self = cast(T)lself.data; // @suppress(dscanner.suspicious.unused_variable)
 
 		static foreach (member; Members) {{
 			static if (!hasStaticMember!(T, member)) {
@@ -125,7 +125,7 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 	}
 
 	void instanceNewIndex(Userdata lself, string key, DConsumable value) {
-		T self = cast(T)lself.data;
+		T self = cast(T)lself.data; // @suppress(dscanner.suspicious.unused_variable)
 
 		static foreach (member; Members) {{
 			static if (!hasStaticMember!(T, member)) {
