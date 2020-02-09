@@ -53,6 +53,9 @@ Nullable!ValueType getValueType(T)() if (isConvertible!T) {
 	else static if (is(U == Userdata)) {
 		return Nullable!ValueType(ValueType.Userdata);
 	}
+	else static if (is(U == DConsumableFunction)) {
+		return Nullable!ValueType(ValueType.Function);
+	}
 	else static if (is(U == DConsumable) || is(U == Value)) {
 		return Nullable!ValueType();
 	}
@@ -251,8 +254,8 @@ struct DConsumable {
 			return Nullable!T(internalValue);
 		}
 		else static if (is(U == DConsumableFunction)) {
-			return Nullable!T(delegate(DConsumable[] args) {
-				return internalValue.func.ccall(args.map!makeInternalValue).makeConsumable.array;
+			return Nullable!T(delegate DConsumable[](DConsumable[] args) {
+				return (cast(Value)internalValue).func.ccall(args.map!makeInternalValue.array).makeConsumable;
 			});
 		}
 		else static assert(0, "Unable to convert to this type");
