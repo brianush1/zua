@@ -199,7 +199,7 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 		T self = cast(T)lself.data; // @suppress(dscanner.suspicious.unused_variable)
 
 		static foreach (member; Members) {{
-			static if (!hasStaticMember!(T, member)) {
+			static if (!hasStaticMember!(T, member) && member[0] != '_') {
 				if (member == key) {
 					enum size_t index = staticIndexOf!(member, AllFieldNamesTuple!T);
 					static if (index != -1) {{
@@ -247,7 +247,7 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 		T self = cast(T)lself.data; // @suppress(dscanner.suspicious.unused_variable)
 
 		static foreach (member; Members) {{
-			static if (!hasStaticMember!(T, member)) {
+			static if (!hasStaticMember!(T, member) && member[0] != '_') {
 				if (member == key) {
 					enum size_t index = staticIndexOf!(member, AllFieldNamesTuple!T);
 					static if (index != -1) {{
@@ -309,7 +309,7 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 		}
 
 		static foreach (member; Members) {{
-			static if (hasStaticMember!(T, member)) {
+			static if (hasStaticMember!(T, member) && member[0] != '_') {
 				if (member == key) {
 					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
 						alias FieldType = typeof(__traits(getMember, T, member));
@@ -344,7 +344,7 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 
 	void staticNewIndex(Userdata, string key, DConsumable value) {
 		static foreach (member; Members) {{
-			static if (hasStaticMember!(T, member)) {
+			static if (hasStaticMember!(T, member) && member[0] != '_') {
 				if (member == key) {
 					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
 						alias FieldType = typeof(__traits(getMember, T, member));
