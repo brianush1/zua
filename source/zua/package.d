@@ -62,6 +62,7 @@ final class Server {
 	CompilationResult compile(string filename, string source) {
 		import zua.parser.lexer : Lexer;
 		import zua.parser.parser : Parser;
+		import zua.parser.analysis : performAnalysis;
 		import zua.compiler.ir : compileAST;
 		import zua.compiler.compiler : compile;
 
@@ -73,6 +74,7 @@ final class Server {
 		Lexer lexer = new Lexer(source, res.diagnostics);
 		Parser parser = new Parser(lexer, res.diagnostics);
 		auto toplevel = parser.toplevel();
+		performAnalysis(res.diagnostics, toplevel);
 		foreach (d; res.diagnostics) {
 			if (d.type == DiagnosticType.Error) {
 				res.unit = null;
