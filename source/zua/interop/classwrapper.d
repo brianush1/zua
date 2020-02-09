@@ -11,13 +11,15 @@ import std.meta;
 private DConsumable makeFunctionFromOverloads(bool isStatic, string member, T...)(T overloads) {
 	pragma(inline) DConsumable[] func(DConsumable[] consumableArgs...) {
 		// first we check for an exact match, then we try an approximate match
-		static foreach (iterations; 0..2) {
+		static foreach (iterations; 0..3) {
 			static foreach (i; 0..overloads.length) {{
 				auto func = overloads[i];
 				alias U = Unqual!(T[i]);
 				try {
-					// if this is the first time, exact match; else, non-exact match
-					auto args = convertParameters!(U, member, iterations == 0)(consumableArgs);
+					// if this is the first time: exact match
+					// second time: exact length
+					// third time: any fit
+					auto args = convertParameters!(U, member, iterations)(consumableArgs);
 					static if (is(ReturnType!U == void)) {
 						func(args.expand);
 						return [];
@@ -100,9 +102,57 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 	Table staticMeta = Table.create();
 	Table instanceMeta = Table.create();
 
-	Userdata constructor() {
-		T res = new T;
-		return Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+	Userdata constructor(DConsumable[] consumableArgs...) {
+		T res;
+		static if (!__traits(hasMember, res, "__ctor")) {
+			res = new T;
+			return Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+		}
+		else {
+			alias Overloads = __traits(getOverloads, res, "__ctor");
+			alias GetPointer(alias U) = typeof(&U);
+			alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
+			alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
+			alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
+			// first we check for an exact match, then we try an approximate match
+			static foreach (iterations; 0..3) {
+				static foreach (i; 0..OverloadsArray.length) {{
+					alias U = Unqual!(OverloadsArray[i]);
+					try {
+						// if this is the first time: exact match
+						// second time: exact length
+						// third time: any fit
+						auto args = convertParameters!(U, "new", iterations)(consumableArgs);
+						res = new T(args.expand);
+						return Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+					}
+					catch (ConversionException e) {
+						// Do nothing
+					}
+					catch (Exception e) {
+						if (cast(LuaError)e) {
+							throw e;
+						}
+						else {
+							throw new LuaError(Value(e.msg));
+						}
+					}
+				}}
+			}
+			// if we didn't find a match, we throw an error:
+			try {
+				convertParameters!(Unqual!(OverloadsArray[0]), "new")(consumableArgs);
+			}
+			catch (Exception e) {
+				if (cast(LuaError)e) {
+					throw e;
+				}
+				else {
+					throw new LuaError(Value(e.msg));
+				}
+			}
+			assert(0);
+		}
 	}
 
 	enum bool NotSpecial(string T) =
@@ -354,6 +404,24 @@ version(unittest) {
 		}
 
 	}
+
+	class E {
+
+		int x;
+
+		this(int x) {
+			this.x = x;
+		}
+
+		this(string y) {
+			this.x = cast(int)y.length;
+		}
+
+		this(string y, int z) {
+			this.x = cast(int)y.length * z;
+		}
+
+	}
 }
 
 unittest {
@@ -364,6 +432,7 @@ unittest {
 
 	c.env.expose!("C", C);
 	c.env.expose!("D", D);
+	c.env.expose!("E", E);
 	c.env["ins2"] = new C;
 
 	try {
@@ -401,6 +470,10 @@ unittest {
 			assert(C.rand3 == 6)
 			C.yMangler = 8
 			assert(C.y == 72)
+			assert(not pcall(E.new))
+			assert(E.new(12).x == 12)
+			assert(E.new("12").x == 2)
+			assert(E.new(12, 3).x == 6)
 		}");
 	}
 	catch (LuaError e) {
