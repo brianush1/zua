@@ -3,6 +3,7 @@ import zua.interop.table;
 import zua.interop;
 import zua.vm.engine;
 import std.typecons;
+import std.uuid;
 
 /** Wrapper around Lua userdata */
 struct Userdata {
@@ -63,6 +64,16 @@ struct Userdata {
 	/** Set the internal data pointer */
 	void data(void* value) {
 		_internalUserdata.userdata.data = value;
+	}
+
+	/** Get the owner UUID of this userdata */
+	UUID owner() {
+		return _internalUserdata.userdata.ownerId;
+	}
+
+	/** Set the owner UUID of this userdata */
+	void owner(UUID value) {
+		_internalUserdata.userdata.ownerId = value;
 	}
 
 }

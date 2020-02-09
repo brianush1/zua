@@ -295,6 +295,9 @@ final class UserdataValue {
 	/** Pointer to user-defined data */
 	void* data;
 
+	/** A UUID that can be used to identify the owner of this userdata */
+	UUID ownerId;
+
 	/** The metatable of this UserdataValue */
 	TableValue metatable;
 
