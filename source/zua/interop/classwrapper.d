@@ -336,7 +336,7 @@ unittest {
 
 	Common c = new Common(GlobalOptions.FullAccess);
 
-	c.env["C"] = makeClassWrapper!C[0];
+	c.env.expose!("C", C);
 	c.env["ins2"] = new C;
 
 	try {

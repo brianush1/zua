@@ -1,4 +1,5 @@
 module zua.interop.table;
+import zua.interop.classwrapper;
 import zua.interop;
 import zua.vm.engine;
 import std.typecons;
@@ -92,6 +93,11 @@ struct Table {
 		DConsumable v;
 		v.__ctor!(T, key)(value);
 		_internalTable.table.set(DConsumable(key).makeInternalValue, v.makeInternalValue);
+	}
+
+	/** Seamless assign to a table, passing a preferred name for the given value */
+	void expose(string key, T)() if (is(T == class)) {
+		_internalTable.table.set(DConsumable(key).makeInternalValue, makeClassWrapper!T[0].makeInternalValue);
 	}
 
 }
