@@ -6,6 +6,7 @@ import zua.interop;
 import zua.vm.engine;
 import std.typecons;
 import std.traits;
+import std.range;
 import std.meta;
 
 private DConsumable makeFunctionFromOverloads(bool isStatic, string member, T...)(T overloads) {
@@ -96,6 +97,37 @@ private template AllFields(alias T) {
 	alias AllFields = staticMap!(Fields, AliasSeq!(T, BaseTuple));
 }
 
+private template IsVisible(alias T) {
+	static if (__traits(getProtection, T) == "public") {
+		enum IsVisible = true;
+	}
+	else {
+		enum IsVisible = false;
+	}
+}
+
+// private template IndexedFilter(alias pred, size_t start, TList...) {
+// 	static if (TList.length == 0) {
+// 		alias IndexedFilter = AliasSeq!();
+// 	}
+// 	else static if (TList.length == 1) {
+// 		static if (pred!(TList[0], start)) {
+// 			alias IndexedFilter = AliasSeq!(TList[0]);
+// 		}
+// 		else {
+// 			alias IndexedFilter = AliasSeq!();
+// 		}
+// 	}
+// 	else {
+// 		static if (pred!(TList[0], start)) {
+// 			alias IndexedFilter = AliasSeq!(TList[0], IndexedFilter!(pred, start + 1, TList[1..$]));
+// 		}
+// 		else {
+// 			alias IndexedFilter = IndexedFilter!(pred, start + 1, TList[1..$]);
+// 		}
+// 	}
+// }
+
 private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if (is(T == class)) {
 	Userdata staticClass = Userdata.create(cast(void*)-1);
 
@@ -172,26 +204,36 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 					enum size_t index = staticIndexOf!(member, AllFieldNamesTuple!T);
 					static if (index != -1) {{
 						alias FieldType = AllFields!T[index];
-						static if (isConvertible!FieldType) {
+						static if (isConvertible!FieldType && IsVisible!(__traits(getMember, self, member))) {
 							return DConsumable(__traits(getMember, self, member));
 						}
 					}}
 					else {
-						alias Overloads = __traits(getOverloads, self, member);
-						alias GetPointer(alias U) = typeof(&U);
-						alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
-						alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
-						alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
-						Tuple!OverloadsArray overloads;
-						static foreach (i; 0..OverloadsArray.length) {
-							overloads[i] = &Overloads[i];
-						}
-						DConsumable func = makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
-						static if (hasFunctionAttributes!(__traits(getMember, self, member), "@property")) {
-							return (cast(DConsumableFunction)func)([DConsumable(lself)])[0];
-						}
-						else {
-							return func;
+						alias Overloads = Filter!(IsVisible, __traits(getOverloads, self, member));
+						static if (Overloads.length > 0) {
+							alias GetPointer(alias U) = typeof(&U);
+							alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
+							alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
+							alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
+							Tuple!OverloadsArray overloads;
+							template FindOverload(string file, int line, int col) {
+								alias ContextedOverloads = __traits(getOverloads, self, member);
+								static foreach (i; 0..ContextedOverloads.length) {
+									static if (AliasSeq!(__traits(getLocation, ContextedOverloads[i])) == AliasSeq!(file, line, col)) {
+										enum FindOverload = i;
+									}
+								}
+							}
+							static foreach (i; 0..OverloadsArray.length) {
+								overloads[i] = &__traits(getOverloads, self, member)[FindOverload!(__traits(getLocation, Overloads[i]))];
+							}
+							DConsumable func = makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
+							static if (hasFunctionAttributes!(__traits(getMember, self, member), "@property")) {
+								return (cast(DConsumableFunction)func)([DConsumable(lself)])[0];
+							}
+							else {
+								return func;
+							}
 						}
 					}
 				}
@@ -210,25 +252,35 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 					enum size_t index = staticIndexOf!(member, AllFieldNamesTuple!T);
 					static if (index != -1) {{
 						alias FieldType = AllFields!T[index];
-						static if (isConvertible!FieldType) {
+						static if (isConvertible!FieldType && IsVisible!(__traits(getMember, self, member))) {
 							__traits(getMember, self, member) = value.opCast!(FieldType, 3);
 							return;
 						}
 					}}
 					else {
 						static if (hasFunctionAttributes!(__traits(getMember, self, member), "@property")) {
-							alias Overloads = __traits(getOverloads, self, member);
-							alias GetPointer(alias U) = typeof(&U);
-							alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
-							alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
-							alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
-							Tuple!OverloadsArray overloads;
-							static foreach (i; 0..OverloadsArray.length) {
-								overloads[i] = &Overloads[i];
+							alias Overloads = Filter!(IsVisible, __traits(getOverloads, self, member));
+							static if (Overloads.length > 0) {
+								alias GetPointer(alias U) = typeof(&U);
+								alias GetDelegate(alias U) = ReturnType!U delegate(Parameters!U);
+								alias GetDelegateFromPointer(alias U) = GetDelegate!(GetPointer!U);
+								alias OverloadsArray = staticMap!(GetDelegateFromPointer, Overloads);
+								Tuple!OverloadsArray overloads;
+								template FindOverload(string file, int line, int col) {
+									alias ContextedOverloads = __traits(getOverloads, self, member);
+									static foreach (i; 0..ContextedOverloads.length) {
+										static if (AliasSeq!(__traits(getLocation, ContextedOverloads[i])) == AliasSeq!(file, line, col)) {
+											enum FindOverload = i;
+										}
+									}
+								}
+								static foreach (i; 0..OverloadsArray.length) {
+									overloads[i] = &__traits(getOverloads, self, member)[FindOverload!(__traits(getLocation, Overloads[i]))];
+								}
+								DConsumable func = makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
+								(cast(DConsumableFunction)func)([DConsumable(lself), value]);
+								return;
 							}
-							DConsumable func = makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
-							(cast(DConsumableFunction)func)([DConsumable(lself), value]);
-							return;
 						}
 						else {
 							throw new Exception("attempt to modify member '" ~ key ~ "'");
@@ -261,24 +313,26 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 				if (member == key) {
 					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
 						alias FieldType = typeof(__traits(getMember, T, member));
-						static if (isConvertible!FieldType) {
+						static if (isConvertible!FieldType && IsVisible!(__traits(getMember, T, member))) {
 							return DConsumable(__traits(getMember, T, member));
 						}
 					}}
 					else {
-						alias Overloads = __traits(getOverloads, T, member);
-						alias GetPointer(alias U) = typeof(&U);
-						alias OverloadsArray = staticMap!(GetPointer, Overloads);
-						Tuple!OverloadsArray overloads;
-						static foreach (i; 0..OverloadsArray.length) {
-							overloads[i] = &Overloads[i];
-						}
-						DConsumable func = makeFunctionFromOverloads!(true, member, OverloadsArray)(overloads.expand);
-						static if (hasFunctionAttributes!(__traits(getMember, T, member), "@property")) {
-							return (cast(DConsumableFunction)func)([])[0];
-						}
-						else {
-							return func;
+						alias Overloads = Filter!(IsVisible, __traits(getOverloads, T, member));
+						static if (Overloads.length > 0) {
+							alias GetPointer(alias U) = typeof(&U);
+							alias OverloadsArray = staticMap!(GetPointer, Overloads);
+							Tuple!OverloadsArray overloads;
+							static foreach (i; 0..OverloadsArray.length) {
+								overloads[i] = &Overloads[i];
+							}
+							DConsumable func = makeFunctionFromOverloads!(true, member, OverloadsArray)(overloads.expand);
+							static if (hasFunctionAttributes!(__traits(getMember, T, member), "@property")) {
+								return (cast(DConsumableFunction)func)([])[0];
+							}
+							else {
+								return func;
+							}
 						}
 					}
 				}
@@ -294,14 +348,14 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 				if (member == key) {
 					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
 						alias FieldType = typeof(__traits(getMember, T, member));
-						static if (isConvertible!FieldType) {
+						static if (isConvertible!FieldType && IsVisible!(__traits(getMember, T, member))) {
 							__traits(getMember, T, member) = value.opCast!(FieldType, 3);
 							return;
 						}
 					}}
 					else {
 						static if (hasFunctionAttributes!(__traits(getMember, T, member), "@property")) {
-							alias Overloads = __traits(getOverloads, T, member);
+							alias Overloads = Filter!(IsVisible, __traits(getOverloads, T, member));
 							alias GetPointer(alias U) = typeof(&U);
 							alias OverloadsArray = staticMap!(GetPointer, Overloads);
 							Tuple!OverloadsArray overloads;
@@ -391,12 +445,38 @@ version(unittest) {
 
 	class D : C {
 
+		private int z = 10;
+
 		override int rand() {
 			return 5; // turns out the last one wasn't so random
 		}
 
 		int fooey() {
 			return 71;
+		}
+
+		int fooey(int s) {
+			return s * 2;
+		}
+
+		private int fooey(string s) {
+			return cast(int)s.length;
+		}
+
+		private void privateProp(int) @property {
+			throw new Exception("how could you fail these tests");
+		}
+
+		private static void privateStatic() {}
+		protected static void protectedStatic() {}
+		static void publicStatic() {}
+
+		void privateProp(string a) @property {
+			z = cast(int)a.length * 12;
+		}
+
+		int getZ() @property {
+			return z;
 		}
 
 		int go() {
@@ -440,6 +520,14 @@ unittest {
 			assert(tostring(C) == "zua.interop.classwrapper.C")
 			assert(ins2.rand2 == 4)
 			local ins3 = D.new()
+			assert(not pcall(function() return ins3.z end))
+			assert(ins3:fooey(3) == 6)
+			assert(ins3:fooey("3") == 6)
+			ins3.privateProp = 32
+			assert(ins3.getZ == 24)
+			assert(not pcall(function() return D.privateStatic end))
+			assert(not pcall(function() return D.protectedStatic end))
+			assert(pcall(D.publicStatic))
 			assert(tostring(ins3) == "C is a class")
 			assert(not pcall(function() return ins3.toString end))
 			assert(ins3:fooey() == 71)
