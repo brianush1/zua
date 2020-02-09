@@ -700,7 +700,7 @@ struct Value {
 
 		Value newindex = meta.get(Value("__newindex"));
 		if (newindex.type != ValueType.Nil) {
-			Value.from(newindex.call([this, key]));
+			Value.from(newindex.call([this, key, value]));
 			return;
 		}
 
