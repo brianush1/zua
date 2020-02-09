@@ -270,6 +270,18 @@ struct DConsumable {
 		}
 	}
 
+	/** Cast operation */
+	T opCast(T, int position)() const {
+		Nullable!T res = convert!T;
+		if (res.isNull) {
+			throw new LuaError(Value("bad argument #" ~ position.to!string ~ " to '?' (" ~ getValueType!T.get.valueTypeToString
+				~ " expected, got " ~ internalValue.type.valueTypeToString ~ ")"));
+		}
+		else {
+			return res.get;
+		}
+	}
+
 }
 
 /** Convert the DConsumable type into an internal-representation Value */
