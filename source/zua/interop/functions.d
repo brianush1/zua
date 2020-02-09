@@ -21,10 +21,9 @@ Convert function parameters from a DConsumable[] to D-side arguments
 
 Parameters:
 preferredName = The name to use in ConversionExceptions
-exact = When true, 
 
 */
-auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = false)(DConsumable[] args) {
+auto convertParameters(QualifiedFunc, string preferredName = "?", int level = 2)(DConsumable[] args) {
 	alias Func = Unqual!QualifiedFunc;
 	static assert(isSomeFunction!Func, "expected function, got " ~ Func.stringof);
 
@@ -36,7 +35,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 				~ ") is not convertible from a Lua value");
 		}
 
-		static if (exact) {
+		static if (level <= 1) {
 			if (Params.length > args.length) {
 				throw new ConversionException("not enough parameters");
 			}
@@ -49,7 +48,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		static foreach (i; 0..Params.length) {{
 			alias ParamType = Params[i];
 			auto dv = i >= args.length ? DConsumable(null) : args[i];
-			Nullable!ParamType res = dv.convert!(ParamType, exact);
+			Nullable!ParamType res = dv.convert!(ParamType, level == 0);
 			if (res.isNull) {
 				// getValueType!ParamType isn't gonna be null, because convert will never fail with a dynamic type
 				throw new ConversionException("bad argument #" ~ to!string(i + 1)
@@ -77,7 +76,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		}
 		static assert(isConvertible!VarargElement, "vararg parameter is not convertible from a Lua value");
 
-		static if (exact) {
+		static if (level <= 1) {
 			if (Params.length > args.length) {
 				throw new ConversionException("not enough parameters");
 			}
@@ -87,7 +86,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		static foreach (i; 0..Params.length) {{
 			alias ParamType = Params[i];
 			auto dv = i >= args.length ? DConsumable(null) : args[i];
-			Nullable!ParamType res = dv.convert!(ParamType, exact);
+			Nullable!ParamType res = dv.convert!(ParamType, level == 0);
 			if (res.isNull) {
 				// getValueType!ParamType isn't gonna be null, because convert will never fail with a dynamic type
 				throw new ConversionException("bad argument #" ~ to!string(i + 1)
@@ -102,7 +101,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		VarargArray vararg;
 		foreach (i; Params.length..args.length) {
 			auto dv = args[i];
-			Nullable!VarargElement res = dv.convert!(VarargElement, exact);
+			Nullable!VarargElement res = dv.convert!(VarargElement, level == 0);
 			if (res.isNull) {
 				// getValueType!VarargElement isn't gonna be null, because convert will never fail with a dynamic type
 				throw new ConversionException("bad argument #" ~ to!string(i + 1)
