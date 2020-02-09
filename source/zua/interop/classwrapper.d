@@ -84,6 +84,16 @@ Tuple!(DConsumable, ClassConverter!T) makeClassWrapper(T)() if (is(T == class)) 
 	}
 }
 
+private template AllFieldNamesTuple(alias T) {
+	alias BaseTuple = TransitiveBaseTypeTuple!T;
+	enum AllFieldNamesTuple = staticMap!(FieldNameTuple, AliasSeq!(T, BaseTuple));
+}
+
+private template AllFields(alias T) {
+	alias BaseTuple = TransitiveBaseTypeTuple!T;
+	alias AllFields = staticMap!(Fields, AliasSeq!(T, BaseTuple));
+}
+
 private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if (is(T == class)) {
 	Userdata staticClass = Userdata.create(cast(void*)-1);
 
@@ -109,9 +119,9 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 		static foreach (member; Members) {{
 			static if (!hasStaticMember!(T, member)) {
 				if (member == key) {
-					enum size_t index = staticIndexOf!(member, FieldNameTuple!T);
+					enum size_t index = staticIndexOf!(member, AllFieldNamesTuple!T);
 					static if (index != -1) {{
-						alias FieldType = Fields!T[index];
+						alias FieldType = AllFields!T[index];
 						static if (isConvertible!FieldType) {
 							return DConsumable(__traits(getMember, self, member));
 						}
@@ -147,9 +157,9 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 		static foreach (member; Members) {{
 			static if (!hasStaticMember!(T, member)) {
 				if (member == key) {
-					enum size_t index = staticIndexOf!(member, FieldNameTuple!T);
+					enum size_t index = staticIndexOf!(member, AllFieldNamesTuple!T);
 					static if (index != -1) {{
-						alias FieldType = Fields!T[index];
+						alias FieldType = AllFields!T[index];
 						static if (isConvertible!FieldType) {
 							__traits(getMember, self, member) = value.opCast!(FieldType, 3);
 							return;
@@ -328,6 +338,22 @@ version(unittest) {
 		}
 
 	}
+
+	class D : C {
+
+		override int rand() {
+			return 5; // turns out the last one wasn't so random
+		}
+
+		int fooey() {
+			return 71;
+		}
+
+		int go() {
+			return x * 3;
+		}
+
+	}
 }
 
 unittest {
@@ -337,12 +363,21 @@ unittest {
 	Common c = new Common(GlobalOptions.FullAccess);
 
 	c.env.expose!("C", C);
+	c.env.expose!("D", D);
 	c.env["ins2"] = new C;
 
 	try {
 		c.run("file.lua", q"{
 			assert(tostring(C) == "zua.interop.classwrapper.C")
 			assert(ins2.rand2 == 4)
+			local ins3 = D.new()
+			assert(tostring(ins3) == "C is a class")
+			assert(not pcall(function() return ins3.toString end))
+			assert(ins3:fooey() == 71)
+			assert(ins3:rand() == 5)
+			assert(ins3.x == 0)
+			ins3.x = 7
+			assert(ins3:go() == 21)
 			local ins = C.new()
 			assert(tostring(ins) == "C is a class")
 			assert(ins.x == 0)
