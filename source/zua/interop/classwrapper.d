@@ -106,28 +106,6 @@ private template IsVisible(alias T) {
 	}
 }
 
-// private template IndexedFilter(alias pred, size_t start, TList...) {
-// 	static if (TList.length == 0) {
-// 		alias IndexedFilter = AliasSeq!();
-// 	}
-// 	else static if (TList.length == 1) {
-// 		static if (pred!(TList[0], start)) {
-// 			alias IndexedFilter = AliasSeq!(TList[0]);
-// 		}
-// 		else {
-// 			alias IndexedFilter = AliasSeq!();
-// 		}
-// 	}
-// 	else {
-// 		static if (pred!(TList[0], start)) {
-// 			alias IndexedFilter = AliasSeq!(TList[0], IndexedFilter!(pred, start + 1, TList[1..$]));
-// 		}
-// 		else {
-// 			alias IndexedFilter = IndexedFilter!(pred, start + 1, TList[1..$]);
-// 		}
-// 	}
-// }
-
 private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if (is(T == class)) {
 	Userdata staticClass = Userdata.create(cast(void*)-1);
 
