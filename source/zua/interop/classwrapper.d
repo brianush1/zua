@@ -8,6 +8,7 @@ import std.typecons;
 import std.traits;
 import std.range;
 import std.meta;
+import std.uuid;
 
 private DConsumable makeFunctionFromOverloads(bool isStatic, string member, T...)(T overloads) {
 	pragma(inline) DConsumable[] func(DConsumable[] consumableArgs...) {
@@ -106,8 +107,27 @@ private template IsVisible(alias T) {
 	}
 }
 
+private UUID classWrapperId;
+private UUID classWrapperStaticId;
+
+static this() {
+	classWrapperId = randomUUID();
+	classWrapperStaticId = randomUUID();
+}
+
+/** Returns true if the given userdata is a class wrapper */
+bool isClassWrapper(Userdata data) {
+	return data.owner == classWrapperId;
+}
+
+/** Returns true if the given userdata is a static class wrapper */
+bool isStaticClassWrapper(Userdata data) {
+	return data.owner == classWrapperStaticId;
+}
+
 private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if (is(T == class)) {
 	Userdata staticClass = Userdata.create(cast(void*)-1);
+	staticClass.owner = classWrapperStaticId;
 
 	Table staticMeta = Table.create();
 	Table instanceMeta = Table.create();
@@ -116,7 +136,9 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 		T res;
 		static if (!__traits(hasMember, res, "__ctor")) {
 			res = new T;
-			return Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+			auto ures = Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+			ures.owner = classWrapperId;
+			return ures;
 		}
 		else {
 			alias Overloads = __traits(getOverloads, res, "__ctor");
@@ -134,7 +156,9 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 						// third time: any fit
 						auto args = convertParameters!(U, "new", iterations)(consumableArgs);
 						res = new T(args.expand);
-						return Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+						auto ures = Userdata.create(cast(void*)res, instanceMeta.Nullable!Table);
+						ures.owner = classWrapperId;
+						return ures;
 					}
 					catch (ConversionException e) {
 						// Do nothing
@@ -365,7 +389,9 @@ private Tuple!(DConsumable, ClassConverter!T) makeClassWrapperUnmemoized(T)() if
 	staticClass.metatable = staticMeta;
 
 	return tuple(DConsumable(staticClass), delegate Userdata(T instance) {
-		return Userdata.create(cast(void*)instance, instanceMeta.Nullable!Table);
+		auto ures = Userdata.create(cast(void*)instance, instanceMeta.Nullable!Table);
+		ures.owner = classWrapperId;
+		return ures;
 	});
 }
 
