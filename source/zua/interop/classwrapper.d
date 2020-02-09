@@ -109,7 +109,13 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 						static foreach (i; 0..OverloadsArray.length) {
 							overloads[i] = &Overloads[i];
 						}
-						return makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
+						DConsumable func = makeFunctionFromOverloads!(false, member, OverloadsArray)(overloads.expand);
+						static if (hasFunctionAttributes!(__traits(getMember, self, member), "@property")) {
+							return (cast(DConsumableFunction)func)([DConsumable(lself)])[0];
+						}
+						else {
+							return func;
+						}
 					}
 				}
 			}
@@ -206,6 +212,14 @@ version(unittest) {
 		static int y = 5;
 		int x;
 
+		int rand() {
+			return 4; // chosen randomly by a dice roll
+		}
+
+		int rand2() const @property {
+			return 4; // see above
+		}
+
 		int foo(int x) {
 			return x * 3;
 		}
@@ -258,6 +272,8 @@ unittest {
 			assert(C.goo() == 7)
 			assert(C.goo(4) == 8)
 			assert(not pcall(function() return C.foo end))
+			assert(ins:rand() == 4)
+			assert(ins.rand2 == 4)
 		}");
 	}
 	catch (LuaError e) {
