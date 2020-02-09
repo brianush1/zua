@@ -2,6 +2,7 @@ module zua.interop;
 import zua.interop.table;
 import zua.interop.userdata;
 import zua.interop.functions;
+import zua.interop.classwrapper;
 import zua.vm.engine;
 import zua.vm.engine : ValueType;
 import std.variant;
@@ -27,7 +28,8 @@ enum bool isConvertible(T) =
 	|| is(Unqual!T == Userdata)
 	|| is(Unqual!T == DConsumable)
 	|| is(Unqual!T == Value)
-	|| isSomeFunction!(Unqual!T);
+	|| isSomeFunction!(Unqual!T)
+	|| is(Unqual!T == class);
 
 /** Returns the ValueType that corresponds to the given D-side type, or null if the given D-side type is dynamic */
 Nullable!ValueType getValueType(T)() if (isConvertible!T) {
@@ -50,7 +52,7 @@ Nullable!ValueType getValueType(T)() if (isConvertible!T) {
 	else static if (is(U == Table)) {
 		return Nullable!ValueType(ValueType.Table);
 	}
-	else static if (is(U == Userdata)) {
+	else static if (is(U == Userdata) || is(U == class)) {
 		return Nullable!ValueType(ValueType.Userdata);
 	}
 	else static if (is(U == DConsumableFunction)) {
@@ -188,6 +190,11 @@ struct DConsumable {
 			};
 
 			this(Value(funcValue), cast(typeof(DConsumable.value))&luaFunction);
+		}
+		else static if (is(U == class)) {
+			Tuple!(DConsumable, ClassConverter!T) classWrapper = makeClassWrapper!T;
+			Userdata uv = classWrapper[1](v);
+			this(uv._internalUserdata, cast(typeof(DConsumable.value))uv);
 		}
 		else static assert(0);
 	}

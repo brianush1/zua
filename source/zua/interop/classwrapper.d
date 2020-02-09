@@ -337,10 +337,12 @@ unittest {
 	Common c = new Common(GlobalOptions.FullAccess);
 
 	c.env["C"] = makeClassWrapper!C[0];
+	c.env["ins2"] = new C;
 
 	try {
 		c.run("file.lua", q"{
 			assert(tostring(C) == "zua.interop.classwrapper.C")
+			assert(ins2.rand2 == 4)
 			local ins = C.new()
 			assert(tostring(ins) == "C is a class")
 			assert(ins.x == 0)
