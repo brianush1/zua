@@ -265,6 +265,19 @@ struct DConsumable {
 				return (cast(Value)internalValue).func.ccall(args.map!makeInternalValue.array).makeConsumable;
 			});
 		}
+		else static if (is(U == class)) {
+			if (internalValue.type == ValueType.Userdata) {
+				Userdata data = value.get!Userdata;
+				if (isClassWrapper(data)) {
+					Object obj = cast(Object)data.data;
+					if (cast(T)obj) {
+						return Nullable!T(cast(T)obj);
+					}
+				}
+			}
+
+			return Nullable!T();
+		}
 		else static assert(0, "Unable to convert to this type");
 	}
 

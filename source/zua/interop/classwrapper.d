@@ -519,6 +519,12 @@ unittest {
 	c.env.expose!("E", E);
 	c.env["ins2"] = new C;
 
+	int getX(C self) {
+		return self.x;
+	}
+
+	c.env.expose!"getX"(&getX);
+
 	try {
 		c.run("file.lua", q"{
 			assert(tostring(C) == "zua.interop.classwrapper.C")
@@ -537,16 +543,20 @@ unittest {
 			assert(ins3:fooey() == 71)
 			assert(ins3:rand() == 5)
 			assert(ins3.x == 0)
+			assert(getX(ins3) == 0)
 			ins3.x = 7
 			assert(ins3:go() == 21)
+			assert(getX(ins3) == 7)
 			local ins = C.new()
 			assert(tostring(ins) == "C is a class")
 			assert(ins.x == 0)
+			assert(getX(ins) == 0)
 			assert(ins:foo(2) == 6)
 			assert(ins:foo(2.9) == 6)
 			assert(ins:foo("programming") == "programming is fun")
 			assert(ins:foo(7, "8") == 807)
 			ins.x = 23
+			assert(getX(ins) == 23)
 			assert(ins.x == 23)
 			assert(select(2, pcall(ins.foo, ins)) == "bad argument #1 to 'foo' (number expected, got nil)")
 			assert(C.y == 5)
@@ -566,6 +576,8 @@ unittest {
 			assert(E.new(12).x == 12)
 			assert(E.new("12").x == 2)
 			assert(E.new(12, 3).x == 6)
+			local e = E.new(3)
+			assert(not pcall(getX, e))
 		}");
 	}
 	catch (LuaError e) {
