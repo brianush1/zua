@@ -9,7 +9,12 @@ import std.typecons;
 import std.uuid;
 import std.algorithm.mutation;
 
-private pragma(LDC_alloca) void* alloca(size_t);
+version(LDC) {
+	private pragma(LDC_alloca) void* alloca(size_t);
+}
+else {
+	import core.stdc.stdlib : alloca;
+}
 
 /** A Lua VM engine */
 class VmEngine : Engine {

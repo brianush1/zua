@@ -59,7 +59,7 @@ struct QuickfixRange {
 		return from == other.from;
 	}
 
-	ulong toHash() const {
+	size_t toHash() const nothrow @safe {
 		return typeid(from).getHash(&from);
 	}
 
