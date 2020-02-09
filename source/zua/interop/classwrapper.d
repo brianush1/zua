@@ -182,7 +182,6 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 		static foreach (member; Members) {{
 			static if (hasStaticMember!(T, member)) {
 				if (member == key) {
-					// TODO: this code is basically the same as the other one
 					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
 						alias FieldType = typeof(__traits(getMember, T, member));
 						static if (isConvertible!FieldType) {
@@ -197,7 +196,13 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 						static foreach (i; 0..OverloadsArray.length) {
 							overloads[i] = &Overloads[i];
 						}
-						return makeFunctionFromOverloads!(true, member, OverloadsArray)(overloads.expand);
+						DConsumable func = makeFunctionFromOverloads!(true, member, OverloadsArray)(overloads.expand);
+						static if (hasFunctionAttributes!(__traits(getMember, T, member), "@property")) {
+							return (cast(DConsumableFunction)func)([])[0];
+						}
+						else {
+							return func;
+						}
 					}
 				}
 			}
@@ -206,7 +211,38 @@ DConsumable makeClassWrapper(T)() if (is(T == class)) {
 		throw new Exception("attempt to index member '" ~ key ~ "'");
 	}
 
-	void staticNewIndex(Userdata, string key, string value) {
+	void staticNewIndex(Userdata, string key, DConsumable value) {
+		static foreach (member; Members) {{
+			static if (hasStaticMember!(T, member)) {
+				if (member == key) {
+					static if (!__traits(isStaticFunction, __traits(getMember, T, member))) {{
+						alias FieldType = typeof(__traits(getMember, T, member));
+						static if (isConvertible!FieldType) {
+							__traits(getMember, T, member) = value.opCast!(FieldType, 3);
+							return;
+						}
+					}}
+					else {
+						static if (hasFunctionAttributes!(__traits(getMember, T, member), "@property")) {
+							alias Overloads = __traits(getOverloads, T, member);
+							alias GetPointer(alias U) = typeof(&U);
+							alias OverloadsArray = staticMap!(GetPointer, Overloads);
+							Tuple!OverloadsArray overloads;
+							static foreach (i; 0..OverloadsArray.length) {
+								overloads[i] = &Overloads[i];
+							}
+							DConsumable func = makeFunctionFromOverloads!(true, member, OverloadsArray)(overloads.expand);
+							(cast(DConsumableFunction)func)([value]);
+							return;
+						}
+						else {
+							throw new Exception("attempt to modify member '" ~ key ~ "'");
+						}
+					}
+				}
+			}
+		}}
+
 		throw new Exception("attempt to modify member '" ~ key ~ "'");
 	}
 
@@ -238,6 +274,14 @@ version(unittest) {
 
 		void xMangler(int x) @property {
 			this.x = x * 8;
+		}
+
+		static int rand3() @property {
+			return 6; // we decided to add another dice roll into the mix
+		}
+
+		static void yMangler(int y) @property {
+			C.y = y * 9;
 		}
 
 		int foo(int x) {
@@ -289,6 +333,8 @@ unittest {
 			assert(ins.x == 23)
 			assert(select(2, pcall(ins.foo, ins)) == "bad argument #1 to 'foo' (number expected, got nil)")
 			assert(C.y == 5)
+			C.y = 18
+			assert(C.y == 18)
 			assert(C.goo() == 7)
 			assert(C.goo(4) == 8)
 			assert(not pcall(function() return C.foo end))
@@ -296,6 +342,9 @@ unittest {
 			assert(ins.rand2 == 4)
 			ins.xMangler = 16
 			assert(ins.x == 128)
+			assert(C.rand3 == 6)
+			C.yMangler = 8
+			assert(C.y == 72)
 		}");
 	}
 	catch (LuaError e) {
