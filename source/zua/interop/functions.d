@@ -49,7 +49,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		static foreach (i; 0..Params.length) {{
 			alias ParamType = Params[i];
 			auto dv = i >= args.length ? DConsumable(null) : args[i];
-			Nullable!ParamType res = dv.convert!ParamType;
+			Nullable!ParamType res = dv.convert!(ParamType, exact);
 			if (res.isNull) {
 				// getValueType!ParamType isn't gonna be null, because convert will never fail with a dynamic type
 				throw new ConversionException("bad argument #" ~ to!string(i + 1)
@@ -87,7 +87,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		static foreach (i; 0..Params.length) {{
 			alias ParamType = Params[i];
 			auto dv = i >= args.length ? DConsumable(null) : args[i];
-			Nullable!ParamType res = dv.convert!ParamType;
+			Nullable!ParamType res = dv.convert!(ParamType, exact);
 			if (res.isNull) {
 				// getValueType!ParamType isn't gonna be null, because convert will never fail with a dynamic type
 				throw new ConversionException("bad argument #" ~ to!string(i + 1)
@@ -102,7 +102,7 @@ auto convertParameters(QualifiedFunc, string preferredName = "?", bool exact = f
 		VarargArray vararg;
 		foreach (i; Params.length..args.length) {
 			auto dv = args[i];
-			Nullable!VarargElement res = dv.convert!VarargElement;
+			Nullable!VarargElement res = dv.convert!(VarargElement, exact);
 			if (res.isNull) {
 				// getValueType!VarargElement isn't gonna be null, because convert will never fail with a dynamic type
 				throw new ConversionException("bad argument #" ~ to!string(i + 1)
